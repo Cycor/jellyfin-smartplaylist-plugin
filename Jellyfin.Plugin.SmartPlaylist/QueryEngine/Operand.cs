@@ -10,6 +10,7 @@ namespace Jellyfin.Plugin.SmartPlaylist.QueryEngine
         public float CriticRating { get; set; }
         public List<string> Directors { get; set; }
         public List<string> Genres { get; set; }
+        public List<string> Tags { get; set; }
         public List<string> GuestStars { get; set; }
         public bool IsPlayed { get; set; }
         public string Name { get; set; }
@@ -40,6 +41,7 @@ namespace Jellyfin.Plugin.SmartPlaylist.QueryEngine
             Producers = new List<string>();
             Studios = new List<string>();
             Writers = new List<string>();
+            Tags = new List<string>();
             MediaType = "";
             Album = "";
             DateCreated = 0;

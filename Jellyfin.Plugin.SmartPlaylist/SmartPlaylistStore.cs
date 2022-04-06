@@ -1,8 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
-using MediaBrowser.Model.Serialization;
 
 namespace Jellyfin.Plugin.SmartPlaylist
 {
@@ -11,18 +12,16 @@ namespace Jellyfin.Plugin.SmartPlaylist
         Task<SmartPlaylistDto> GetSmartPlaylistAsync(Guid smartPlaylistId);
         Task<SmartPlaylistDto[]> LoadPlaylistsAsync(Guid userId);
         Task<SmartPlaylistDto[]> GetAllSmartPlaylistsAsync();
-        void Save(SmartPlaylistDto smartPlaylist);
+        Task Save(SmartPlaylistDto smartPlaylist, CancellationToken token);
         void Delete(Guid userId, string smartPlaylistId);
     }
 
     public class SmartPlaylistStore : ISmartPlaylistStore
     {
         private readonly ISmartPlaylistFileSystem _fileSystem;
-        private readonly IJsonSerializer _jsonSerializer;
 
-        public SmartPlaylistStore(IJsonSerializer jsonSerializer, ISmartPlaylistFileSystem fileSystem)
+        public SmartPlaylistStore(ISmartPlaylistFileSystem fileSystem)
         {
-            _jsonSerializer = jsonSerializer;
             _fileSystem = fileSystem;
         }
 
@@ -52,10 +51,14 @@ namespace Jellyfin.Plugin.SmartPlaylist
             return deserializeTasks.Select(x => x.Result).ToArray();
         }
 
-        public void Save(SmartPlaylistDto smartPlaylist)
+        public async Task Save(SmartPlaylistDto smartPlaylist, CancellationToken token)
         {
             var filePath = _fileSystem.GetSmartPlaylistPath(smartPlaylist.Id, smartPlaylist.FileName);
-            _jsonSerializer.SerializeToFile(smartPlaylist, filePath);
+
+            await using var writeStream = File.Open(filePath, FileMode.Create);
+            var options = new JsonSerializerOptions { WriteIndented = true};
+
+            await JsonSerializer.SerializeAsync(writeStream, smartPlaylist, options, cancellationToken: token).ConfigureAwait(false);
         }
 
         public void Delete(Guid userId, string smartPlaylistId)
@@ -66,14 +69,9 @@ namespace Jellyfin.Plugin.SmartPlaylist
 
         private async Task<SmartPlaylistDto> LoadPlaylistAsync(string filePath)
         {
-            using (var reader = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None, 4096,
-                FileOptions.Asynchronous))
-            {
-                var res = await _jsonSerializer.DeserializeFromStreamAsync<SmartPlaylistDto>(reader)
-                    .ConfigureAwait(false);
-                reader.Close();
-                return res;
-            }
+            using var reader = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
+            var res = await JsonSerializer.DeserializeAsync<SmartPlaylistDto>(reader).ConfigureAwait(false);
+            return res;
         }
     }
 }

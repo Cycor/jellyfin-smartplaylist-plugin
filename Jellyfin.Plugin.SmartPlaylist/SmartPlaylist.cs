@@ -2,6 +2,7 @@
 using Jellyfin.Plugin.SmartPlaylist.QueryEngine;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,28 +54,21 @@ namespace Jellyfin.Plugin.SmartPlaylist
             }
             
         }
-        private List<List<Func<Operand, bool>>> CompileRuleSets()
-        {
 
-            List<List<Func<Operand, bool>>> compiledRuleSets = new List<List<Func<Operand, bool>>>();
-            foreach(var set in this.ExpressionSets)
-            {
-                compiledRuleSets.Add(set.Expressions.Select(r => Engine.CompileRule<Operand>(r)).ToList());
-            }
-            return compiledRuleSets;
-        }
         // Returns the ID's of the items, if order is provided the IDs are sorted.
-        public IEnumerable<Guid> FilterPlaylistItems(IEnumerable<BaseItem> items, ILibraryManager libraryManager, User user)
+        public IEnumerable<Guid> FilterPlaylistItems(IEnumerable<BaseItem> items, ILibraryManager libraryManager, User user, ILogger logger)
         {
             var results = new List<BaseItem> { };
 
-            var compiledRules = CompileRuleSets();
             foreach (var i in items)
             {
-                var operand = OperandFactory.GetMediaType(libraryManager, i, user);
-                
-                if (compiledRules.Any(set => set.All(rule => rule(operand))))
+                var operand = OperandFactory.GetMediaType(libraryManager, i, user, logger);
+
+                var match = this.ExpressionSets.FirstOrDefault(set => set.Expressions.All(rule => rule.Execute(operand)));
+
+                if (match != null)
                 {
+                    logger.LogDebug(operand.Name + " matches rule " + match.Name);
                     results.Add(i);
                 }
             }

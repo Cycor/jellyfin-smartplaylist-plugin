@@ -17,6 +17,7 @@ namespace Jellyfin.Plugin.SmartPlaylist
     }
     public class ExpressionSet
     {
+        public string Name { get; set; }
         public List<Expression> Expressions { get; set; }
     }
     public class OrderDto

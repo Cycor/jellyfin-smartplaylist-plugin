@@ -1,17 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Version>1.0.0.0</Version>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.7.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="10.8.0-alpha5" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /y /d  &quot;$(TargetPath)&quot; &quot;C:\Users\Rob\Desktop\jellyfin-data\plugins&quot;" />
+    <Exec Command="xcopy /y /d  &quot;$(TargetPath)&quot; &quot;C:\Mount\dockerlxc_container_storage\settings\jellyfin_beta\plugins\Smart Playlist_1.0.0.1&quot;" />
   </Target>
 
 </Project>

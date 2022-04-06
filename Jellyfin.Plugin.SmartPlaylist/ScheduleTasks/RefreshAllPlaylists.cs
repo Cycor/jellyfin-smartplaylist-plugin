@@ -7,19 +7,21 @@ using MediaBrowser.Controller.Library;
 using System.Threading.Tasks;
 using MediaBrowser.Model.Tasks;
 using MediaBrowser.Controller;
-using MediaBrowser.Model.Serialization;
-using MediaBrowser.Controller.Entities.Audio;
 using Microsoft.Extensions.Logging;
 using MediaBrowser.Controller.Playlists;
 using MediaBrowser.Model.Playlists;
 using Jellyfin.Data.Entities;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.IO;
+using Jellyfin.Data.Enums;
 
+namespace MediaBrowser.Model.Tasks
+{
+}
 
 namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
 {
-    public class RefreshAllPlaylists : IScheduledTask, IConfigurableScheduledTask
+    public class RefreshAllPlaylists : IScheduledTask, IScheduledTask2, IConfigurableScheduledTask
     {
         private readonly IFileSystem _fileSystem;
         private readonly ILibraryManager _libraryManager;
@@ -31,7 +33,6 @@ namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
         private readonly IUserManager _userManager;
         public RefreshAllPlaylists(
             IFileSystem fileSystem,
-            IJsonSerializer jsonSerializer,
             ILibraryManager libraryManager,
             ILogger<Plugin> logger,
             IPlaylistManager playlistManager,
@@ -46,14 +47,14 @@ namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
             _playlistManager = playlistManager;
             _providerManager = providerManager;
             _userManager = userManager;
-            
+
             _plFileSystem = new SmartPlaylistFileSystem(serverApplicationPaths);
-            _plStore = new SmartPlaylistStore(jsonSerializer, _plFileSystem);
-           
+            _plStore = new SmartPlaylistStore(_plFileSystem);
+
             _logger.LogInformation("Constructed Refresher ");
         }
-        public static readonly Type[] SupportedItemTypes = { typeof(Audio), typeof(MediaBrowser.Controller.Entities.Movies.Movie), typeof(MediaBrowser.Controller.Entities.TV.Episode) };
-        public static readonly string[] SupportedItemTypeNames = SupportedItemTypes.Select(x => x.Name).ToArray();
+        public static readonly BaseItemKind[] SupportedItemTypes = { BaseItemKind.Audio, BaseItemKind.Movie, BaseItemKind.Episode, BaseItemKind.MusicVideo, BaseItemKind.MusicAlbum, BaseItemKind.Episode };
+        //public static readonly Type[] SupportedItemTypes = { typeof(Audio), typeof(MediaBrowser.Controller.Entities.Movies.Movie), typeof(MediaBrowser.Controller.Entities.TV.Episode) };
         public bool IsHidden => false;
         public bool IsEnabled => true;
         public bool IsLogged => true;
@@ -94,14 +95,19 @@ namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
         {
             var query = new InternalItemsQuery(user)
             {
-                IncludeItemTypes = SupportedItemTypeNames,
+                IncludeItemTypes = SupportedItemTypes,
                 Recursive = true,
             };
-            
+
             return (IEnumerable<BaseItem>)_libraryManager.GetItemsResult(query).Items;
         }
 
         public Task Execute(CancellationToken cancellationToken, IProgress<double> progress)
+        {
+            return ExecuteAsync(progress, cancellationToken);
+        }
+
+        public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
         {
             var dtos = _plStore.GetAllSmartPlaylistsAsync();
             dtos.Wait();
@@ -128,26 +134,25 @@ namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
                     _logger.LogInformation("Playlist ID not set, creating new playlist");
                     var plid = CreateNewPlaylist(dto, user);
                     dto.Id = plid;
-                    _plStore.Save(dto);
+                    await _plStore.Save(dto, cancellationToken).ConfigureAwait(false);
                     var playlists = _playlistManager.GetPlaylists(user.Id);
                     p = playlists.Where(x => x.Id.ToString().Replace("-", "") == dto.Id).ToList();
                 }
 
-                var new_items = smart_playlist.FilterPlaylistItems(GetAllUserMedia(user), _libraryManager, user);
+                var new_items = smart_playlist.FilterPlaylistItems(GetAllUserMedia(user), _libraryManager, user, _logger);
 
                 var playlist = p.First();
                 var query = new InternalItemsQuery(user)
                 {
-                    IncludeItemTypes = SupportedItemTypeNames,
+                    IncludeItemTypes = SupportedItemTypes,
                     Recursive = true,
                 };
                 var plitems = playlist.GetChildren(user, false, query).ToList();
 
                 var toremove = plitems.Select(x => x.Id.ToString()).ToList();
                 RemoveFromPlaylist(playlist.Id.ToString(), toremove);
-                _playlistManager.AddToPlaylistAsync(playlist.Id, new_items.ToArray(), user.Id);
+                await _playlistManager.AddToPlaylistAsync(playlist.Id, new_items.ToArray(), user.Id).ConfigureAwait(false);
             }
-            return Task.CompletedTask;
         }
 
         // Real PlaylistManagers RemoveFromPlaylist needs an entry ID which seems to not work. Explore further and file a bug.

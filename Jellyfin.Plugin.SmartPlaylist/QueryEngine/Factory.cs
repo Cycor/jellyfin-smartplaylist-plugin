@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using Jellyfin.Data.Entities;
 using System.Linq;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.SmartPlaylist.QueryEngine
 {
     class OperandFactory
     {
         // Returns a specific operand povided a baseitem, user, and library manager object.
-        public static Operand GetMediaType(ILibraryManager libraryManager, BaseItem baseItem, User user)
+        public static Operand GetMediaType(ILibraryManager libraryManager, BaseItem baseItem, User user, ILogger logger)
         {
 
             var operand = new Operand(baseItem.Name);
@@ -27,6 +28,7 @@ namespace Jellyfin.Plugin.SmartPlaylist.QueryEngine
                 operand.Writers = people.Where(x => x.Type.Equals("Writer")).Select(x => x.Name).ToList();
             }
 
+            operand.Tags = baseItem.Tags?.ToList();
             operand.Genres = baseItem.Genres.ToList();
             operand.IsPlayed = baseItem.IsPlayed(user);
             operand.Studios = baseItem.Studios.ToList();
@@ -37,15 +39,31 @@ namespace Jellyfin.Plugin.SmartPlaylist.QueryEngine
 
             if (baseItem.PremiereDate.HasValue)
             {
-                operand.PremiereDate = new DateTimeOffset(baseItem.PremiereDate.Value).ToUnixTimeSeconds();
+                operand.PremiereDate = Process(baseItem.PremiereDate.Value)?.ToUnixTimeSeconds() ?? 0;
             }
-            operand.DateCreated = new DateTimeOffset(baseItem.DateCreated).ToUnixTimeSeconds();
-            operand.DateLastRefreshed = new DateTimeOffset(baseItem.DateLastRefreshed).ToUnixTimeSeconds();
-            operand.DateLastSaved = new DateTimeOffset(baseItem.DateLastSaved).ToUnixTimeSeconds();
-            operand.DateModified = new DateTimeOffset(baseItem.DateModified).ToUnixTimeSeconds();
-            
-            operand.FolderPath = baseItem.ContainingFolderPath;
+
+            operand.DateCreated = Process(baseItem.DateCreated)?.ToUnixTimeSeconds() ?? 0;
+            operand.DateLastRefreshed = Process(baseItem.DateLastRefreshed)?.ToUnixTimeSeconds() ?? 0;
+            operand.DateLastSaved = Process(baseItem.DateLastSaved)?.ToUnixTimeSeconds() ?? 0;
+            operand.DateModified = Process(baseItem.DateModified)?.ToUnixTimeSeconds() ?? 0;
+
+            operand.FolderPath = baseItem.ContainingFolderPath ?? "";
             return operand;
         }
+
+        private static DateTimeOffset? Process(DateTime dateTime)
+        {
+            try
+            {
+                if (dateTime.Year > 1900 && dateTime.Year < 5000)
+                    return new DateTimeOffset(dateTime);
+                return null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
     }
 }
