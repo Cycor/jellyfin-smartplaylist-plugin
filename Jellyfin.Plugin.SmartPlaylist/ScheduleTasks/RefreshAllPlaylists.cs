@@ -21,7 +21,7 @@ namespace MediaBrowser.Model.Tasks
 
 namespace Jellyfin.Plugin.SmartPlaylist.ScheduleTasks
 {
-    public class RefreshAllPlaylists : IScheduledTask, IScheduledTask2, IConfigurableScheduledTask
+    public class RefreshAllPlaylists : IScheduledTask, IConfigurableScheduledTask
     {
         private readonly IFileSystem _fileSystem;
         private readonly ILibraryManager _libraryManager;
